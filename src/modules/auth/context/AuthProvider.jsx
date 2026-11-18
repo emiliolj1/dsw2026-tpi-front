@@ -1,94 +1,101 @@
-import { createContext, useState } from 'react';
-import { login } from '../services/login';
-import { loginAdmin } from '../services/adminLogin';
-import { loginPatient } from '../services/patientLogin';
+import {
+  createContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import {
+  clearSession,
+  getStoredSession,
+  getTokenExpiration,
+  parseSession,
+  storeSession,
+  subscribeToSession,
+} from '../../shared/api/sessionStorage';
+import { loginAdmin, loginPatient, logout } from '../services/login';
 
 const AuthContext = createContext();
 
 function AuthProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    const token = localStorage.getItem('token');
+  const storedSession = useSyncExternalStore(
+    subscribeToSession,
+    getStoredSession
+  );
+  const session = parseSession(storedSession);
+  const token = session?.token;
+  const [signingOut, setSigningOut] = useState(false);
+  const [logoutWarningRole, setLogoutWarningRole] = useState(null);
 
-    return Boolean(token);
-  });
-
-  const singout = () => {
-    localStorage.clear();
-    setIsAuthenticated(false);
-  };
-
-  const setAuthSession = (token) => {
-    localStorage.setItem('token', token);
-    setIsAuthenticated(true);
-  };
-
-  const singin = async (username, password) => {
-    const { data, error } = await login(username, password);
-
-    if (error) {
-      return { error };
+  useEffect(() => {
+    if (!token) {
+      return;
     }
 
-    setAuthSession(data);
+    const expiresAt = getTokenExpiration(token);
 
-    return { error: null };
-  };
-
-  const singinAdmin = async (username, password) => {
-    if (
-      (username === 'admin' ||
-        username === 'admin@medportal.com' ||
-        username === 'admin@test.com') &&
-      password === 'admin123'
-    ) {
-      setAuthSession('mock-admin-token-12345');
-
-      return { error: null };
+    if (expiresAt === null) {
+      return;
     }
 
-    const { data, error } = await loginAdmin(username, password);
+    const timeout = window.setTimeout(
+      () => clearSession(token),
+      Math.max(0, expiresAt - Date.now())
+    );
 
-    if (error) {
-      return { error };
+    return () => window.clearTimeout(timeout);
+  }, [token]);
+
+  async function signInAdmin(email, password) {
+    setLogoutWarningRole(null);
+    const { token, role } = await loginAdmin(email, password);
+
+    if (!token || role !== 'ADMINISTRADOR') {
+      throw new Error('Respuesta de inicio de sesión administrativo inválida');
     }
 
-    setAuthSession(data);
+    storeSession({ token, role });
+  }
 
-    return { error: null };
-  };
+  async function signInPatient(email, dni) {
+    setLogoutWarningRole(null);
+    const { token, role } = await loginPatient(email, dni);
 
-  const singinPatient = async (username, password) => {
-    if (
-      (username === 'paciente' ||
-        username === 'paciente@medportal.com' ||
-        username === 'paciente@test.com') &&
-      password === 'paciente123'
-    ) {
-      setAuthSession('mock-patient-token-67890');
-
-      return { error: null };
+    if (!token || role !== 'PACIENTE') {
+      throw new Error('Respuesta de inicio de sesión de paciente inválida');
     }
 
-    const { data, error } = await loginPatient(username, password);
+    storeSession({ token, role, dni });
+  }
 
-    if (error) {
-      return { error };
+  async function signOut() {
+    if (!session || signingOut) {
+      return;
     }
 
-    setAuthSession(data);
+    setSigningOut(true);
+    setLogoutWarningRole(null);
 
-    return { error: null };
-  };
+    try {
+      await logout(session.token);
+    } catch (error) {
+      if (error.response?.status !== 401) {
+        setLogoutWarningRole(session.role);
+      }
+    } finally {
+      clearSession(session.token);
+      setSigningOut(false);
+    }
+  }
 
   return (
     <AuthContext.Provider
       value={{
-        isAuthenticated,
-        singin,
-        singinAdmin,
-        singinPatient,
-        singout,
-        setAuthSession,
+        session,
+        signInAdmin,
+        signInPatient,
+        signOut,
+        signingOut,
+        logoutWarningRole,
       }}
     >
       {children}

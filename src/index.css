@@ -1,35 +1,34 @@
 @import 'tailwindcss';
 
 @theme {
-  /* Azules Institucionales Médicos */
-  --color-med-primary-950: #062644;
-  --color-med-primary-900: #0b385e;
-  --color-med-primary-800: #092f4f;
-  --color-med-primary-700: #0f4c81;
-  --color-med-primary-600: #0e5b8e;
-  --color-med-primary-500: #1d70b8;
-  --color-med-primary-200: #c2e0f8;
-  --color-med-primary-100: #e0f2fe;
-  --color-med-primary-50: #eef7fc;
+  --font-sans: system-ui, sans-serif;
+  --font-serif: Georgia, 'Times New Roman', serif;
 
-  /* Superficies y Fondos */
-  --color-med-bg: #f4f7fb;
-  --color-med-card: #ffffff;
-  --color-med-border: #e2e8f0;
-  --color-med-border-subtle: #edf2f7;
+  --color-med-primary-950: #082c2b;
+  --color-med-primary-900: #124541;
+  --color-med-primary-800: #19554e;
+  --color-med-primary-700: #20645b;
+  --color-med-primary-600: #27766a;
+  --color-med-primary-500: #398b79;
+  --color-med-primary-200: #bce6d5;
+  --color-med-primary-100: #dcf1e8;
+  --color-med-primary-50: #edf8f2;
 
-  /* Tipografía */
-  --color-med-text-main: #0f2438;
-  --color-med-text-sub: #4b5e71;
-  --color-med-text-muted: #8c9dae;
+  --color-med-bg: #f7f4eb;
+  --color-med-card: #fffef9;
+  --color-med-border: #c8d5cc;
+  --color-med-border-subtle: #e1e9e0;
 
-  /* Estados Funcionales */
-  --color-med-active-bg: #ddf8ef;
-  --color-med-active-text: #0e775a;
+  --color-med-text-main: #172d29;
+  --color-med-text-sub: #415d55;
+  --color-med-text-muted: #536d63;
+
+  --color-med-active-bg: #dcf1e8;
+  --color-med-active-text: #19634e;
   --color-med-leave-bg: #fef3c7;
-  --color-med-leave-text: #b45309;
-  --color-med-danger-bg: #fee2e2;
-  --color-med-danger-text: #dc2626;
+  --color-med-leave-text: #8a4107;
+  --color-med-danger-bg: #fbe7e5;
+  --color-med-danger-text: #9f2d29;
 }
 
 @layer base {
@@ -37,6 +36,12 @@
     @apply m-0 text-sm sm:text-base bg-med-bg text-med-text-main font-sans antialiased;
     min-height: 100dvh;
   }
+
+  h1,
+  h2 {
+    @apply font-serif;
+  }
+
   #root {
     min-height: 100dvh;
   }
