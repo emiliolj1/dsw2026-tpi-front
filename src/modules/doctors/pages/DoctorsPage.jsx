@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../shared/components/Card';
 import Button from '../../shared/components/Button';
 import TablePagination from '../../shared/components/TablePagination';
@@ -8,6 +9,7 @@ import { deleteDoctor } from '../services/deleteDoctor';
 import { listDoctors } from '../services/listDoctors';
 
 function DoctorsPage() {
+  const navigate = useNavigate();
   const [editor, setEditor] = useState(null);
   const [notice, setNotice] = useState('');
   const [removingId, setRemovingId] = useState(null);
@@ -133,7 +135,7 @@ function DoctorsPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button
-            onClick={() => alert('Abrir modal de disponibilidad horaria')}
+            onClick={() => navigate('/admin/availability')}
             className="flex items-center gap-2 bg-med-primary-900 hover:bg-med-primary-800 text-white"
           >
             <svg
