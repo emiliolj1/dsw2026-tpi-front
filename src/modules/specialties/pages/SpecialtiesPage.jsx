@@ -1,105 +1,128 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Card from '../../shared/components/Card';
 import Button from '../../shared/components/Button';
+import SpecialtyForm from '../components/SpecialtyForm';
+import { listSpecialties } from '../services/listSpecialties';
+import { deleteSpecialty } from '../services/deleteSpecialty';
 
 function SpecialtiesPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterError, setFilterError] = useState('');
+  const [query, setQuery] = useState({ name: '', pageIndex: 0 });
+  const [result, setResult] = useState(null);
+  const [editor, setEditor] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [removingId, setRemovingId] = useState(null);
+  const [removalError, setRemovalError] = useState('');
+  const busy = Boolean(editor) || removingId !== null;
+  const loading = result?.query !== query;
+  const page = loading ? null : result.page;
+  const error = loading ? '' : result.error;
 
-  const specialtiesList = [
-    {
-      id: 1,
-      name: 'Cardiología',
-      description:
-        'Estudio y tratamiento de trastornos del corazón y del sistema circulatorio.',
-      status: 'Active',
-      icon: (
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.75"
-            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 2,
-      name: 'Neurología',
-      description:
-        'Diagnóstico y tratamiento de todas las categorías de afecciones cerebrales.',
-      status: 'Active',
-      icon: (
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.75"
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 3,
-      name: 'Dermatología',
-      description:
-        'Atención integral de enfermedades de la piel, uñas y cabello.',
-      status: 'Inactive',
-      icon: (
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.75"
-            d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 4,
-      name: 'Pediatría',
-      description: 'Cuidado médico de lactantes, niños y adolescentes.',
-      status: 'Active',
-      icon: (
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.75"
-            d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-      ),
-    },
-  ];
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const filteredSpecialties = specialtiesList.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    async function loadPage() {
+      try {
+        const data = await listSpecialties({
+          ...query,
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const lastPage = Math.max(0, Math.ceil(data.total / data.pageSize) - 1);
+
+        if (query.pageIndex > lastPage) {
+          setQuery({ ...query, pageIndex: lastPage });
+
+          return;
+        }
+
+        setResult({ query, page: data, error: '' });
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          const message = err.response?.data?.message;
+
+          setResult({
+            query,
+            page: null,
+            error:
+              typeof message === 'string' && message
+                ? message
+                : 'No se pudieron cargar las especialidades.',
+          });
+        }
+      }
+    }
+
+    loadPage();
+
+    return () => controller.abort();
+  }, [query]);
+
+  function search(event) {
+    event.preventDefault();
+
+    const name = searchTerm.trim();
+
+    if (name && (name.length < 3 || name.length > 100)) {
+      setFilterError('Ingresá entre 3 y 100 caracteres para buscar.');
+
+      return;
+    }
+
+    setFilterError('');
+    setQuery({ name, pageIndex: 0 });
+  }
+
+  function showSaved({ name }) {
+    setEditor(null);
+    setRemovalError('');
+    setNotice(
+      `${editor.specialty ? 'Se actualizó' : 'Se creó'} la especialidad «${name}».`
+    );
+    setSearchTerm(name);
+    setFilterError('');
+    setQuery({ name, pageIndex: 0 });
+  }
+
+  function clearSearch() {
+    setSearchTerm('');
+    setFilterError('');
+    setQuery({ name: '', pageIndex: 0 });
+  }
+
+  async function removeSpecialty({ id, name }) {
+    if (
+      removingId ||
+      !window.confirm(`¿Dar de baja la especialidad «${name}»?`)
+    ) {
+      return;
+    }
+
+    setRemovalError('');
+    setNotice('');
+    setRemovingId(id);
+
+    try {
+      await deleteSpecialty(id);
+      setNotice(`Se dio de baja la especialidad «${name}».`);
+    } catch (err) {
+      const message = err.response?.data?.message;
+
+      setRemovalError(
+        typeof message === 'string' && message.trim()
+          ? `Baja de «${name}». ${message}`
+          : `No se pudo confirmar la baja de «${name}».`
+      );
+    } finally {
+      setRemovingId(null);
+      setQuery((current) => ({ ...current }));
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,35 +139,55 @@ function SpecialtiesPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Buscador */}
-          <div className="relative min-w-[240px] flex-1 sm:flex-initial">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-med-text-muted">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          <form onSubmit={search} role="search">
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="specialty-name" className="sr-only">
+                Nombre de la especialidad
+              </label>
+              <input
+                id="specialty-name"
+                type="search"
+                placeholder="Buscar por nombre"
+                value={searchTerm}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setFilterError('');
+                }}
+                aria-invalid={Boolean(filterError)}
+                aria-describedby={
+                  filterError ? 'specialty-filter-error' : undefined
+                }
+                className="px-3 py-2 text-sm border border-med-border rounded-lg"
+              />
+              <Button type="submit" variant="secondary">
+                Buscar
+              </Button>
+              {(searchTerm || query.name) && (
+                <Button variant="ghost" onClick={clearSearch}>
+                  Limpiar
+                </Button>
+              )}
+            </div>
+            {filterError && (
+              <p
+                id="specialty-filter-error"
+                role="alert"
+                className="mt-1 text-sm text-red-600"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </span>
-            <input
-              type="text"
-              placeholder="Buscar especialidad..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-med-border rounded-lg text-med-text-main placeholder-med-text-muted focus:outline-none focus:ring-1 focus:ring-med-primary-600"
-            />
-          </div>
+                {filterError}
+              </p>
+            )}
+          </form>
 
           {/* Botón Nueva Especialidad */}
           <Button
-            onClick={() => alert('Abrir modal para crear nueva especialidad')}
+            aria-expanded={editor?.specialty === null}
+            disabled={busy}
+            onClick={() => {
+              setNotice('');
+              setRemovalError('');
+              setEditor({ specialty: null });
+            }}
             className="flex items-center gap-1.5 bg-med-primary-900 hover:bg-med-primary-800 text-white font-medium"
           >
             <span>+</span>
@@ -153,6 +196,23 @@ function SpecialtiesPage() {
         </div>
       </div>
 
+      {editor && (
+        <SpecialtyForm
+          specialty={editor.specialty}
+          onSaved={showSaved}
+          onCancel={() => setEditor(null)}
+        />
+      )}
+      {notice && (
+        <p role="status" className="text-sm font-medium text-med-primary-900">
+          {notice}
+        </p>
+      )}
+      {removalError && (
+        <p role="alert" className="text-sm font-medium text-red-600">
+          {removalError}
+        </p>
+      )}
       {/* Tabla Principal de Especialidades */}
       <Card className="p-0 overflow-hidden border-med-border">
         <div className="p-5 border-b border-med-border">
@@ -171,21 +231,43 @@ function SpecialtiesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-med-border-subtle">
-              {filteredSpecialties.map((spec) => (
+              {(loading || error || page?.data.length === 0) && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-5 text-med-text-sub">
+                    {loading && (
+                      <span role="status">Cargando especialidades…</span>
+                    )}
+                    {error && (
+                      <div
+                        role="alert"
+                        className="flex flex-wrap items-center gap-3"
+                      >
+                        <span>{error}</span>
+                        <Button
+                          variant="outline"
+                          onClick={() => setQuery({ ...query })}
+                        >
+                          Reintentar
+                        </Button>
+                      </div>
+                    )}
+                    {page?.data.length === 0 && (
+                      <span role="status">
+                        {query.name
+                          ? 'Ninguna especialidad coincide con la búsqueda.'
+                          : 'Todavía no hay especialidades registradas.'}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )}
+              {page?.data.map((spec) => (
                 <tr
                   key={spec.id}
                   className="hover:bg-gray-50/70 transition-colors"
                 >
-                  {/* Nombre con icono en caja celeste */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-med-primary-100 text-med-primary-700 flex items-center justify-center shrink-0">
-                        {spec.icon}
-                      </div>
-                      <span className="font-semibold text-med-primary-900">
-                        {spec.name}
-                      </span>
-                    </div>
+                  <td className="px-6 py-4 font-semibold text-med-primary-900">
+                    {spec.name}
                   </td>
 
                   {/* Descripción */}
@@ -193,17 +275,10 @@ function SpecialtiesPage() {
                     {spec.description}
                   </td>
 
-                  {/* Estado (Active / Inactive) */}
                   <td className="px-6 py-4 text-center">
-                    {spec.status === 'Active' ? (
-                      <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-med-active-bg text-med-active-text">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-                        Inactive
-                      </span>
-                    )}
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-med-active-bg text-med-active-text">
+                      Activa
+                    </span>
                   </td>
 
                   {/* Acciones: Editar y Eliminar */}
@@ -212,9 +287,13 @@ function SpecialtiesPage() {
                       <button
                         title="Editar especialidad"
                         className="p-1.5 rounded-lg hover:bg-med-primary-50 text-med-text-muted hover:text-med-primary-900 transition"
-                        onClick={() =>
-                          alert(`Editar especialidad ${spec.name}`)
-                        }
+                        aria-label={`Editar ${spec.name}`}
+                        disabled={busy}
+                        onClick={() => {
+                          setNotice('');
+                          setRemovalError('');
+                          setEditor({ specialty: spec });
+                        }}
                       >
                         <svg
                           className="w-4 h-4"
@@ -232,11 +311,12 @@ function SpecialtiesPage() {
                       </button>
 
                       <button
-                        title="Eliminar especialidad"
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-med-text-muted hover:text-med-danger-text transition"
-                        onClick={() =>
-                          alert(`Eliminar especialidad ${spec.name}`)
-                        }
+                        type="button"
+                        title="Dar de baja la especialidad"
+                        aria-label={`Dar de baja ${spec.name}`}
+                        disabled={busy}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-med-text-muted hover:text-med-danger-text transition disabled:opacity-50"
+                        onClick={() => removeSpecialty(spec)}
                       >
                         <svg
                           className="w-4 h-4"
@@ -260,18 +340,39 @@ function SpecialtiesPage() {
           </table>
         </div>
 
-        {/* Paginador normalizado idéntico a Búsqueda y Filtrado de Citas */}
-        <div className="p-4 bg-med-primary-50/50 border-t border-med-border flex items-center justify-between text-xs text-med-text-muted">
-          <span>Mostrando 4 de 32 registros</span>
-          <div className="flex items-center gap-1">
-            <button className="px-2.5 py-1 border border-med-border rounded bg-white text-med-text-sub hover:bg-gray-50">
-              ‹
-            </button>
-            <button className="px-2.5 py-1 border border-med-border rounded bg-white text-med-text-sub hover:bg-gray-50">
-              ›
-            </button>
+        {page && (
+          <div className="p-4 bg-med-primary-50/50 border-t border-med-border flex items-center justify-between gap-2 text-xs text-med-text-sub">
+            <span aria-live="polite">
+              {page.total <= 1
+                ? page.total === 1
+                  ? '1 registro'
+                  : '0 registros'
+                : `${page.pageIndex * page.pageSize + 1}–${page.pageIndex * page.pageSize + page.data.length} de ${page.total} registros`}
+            </span>
+            <nav aria-label="Páginas de especialidades" className="flex gap-2">
+              <Button
+                variant="outline"
+                disabled={page.pageIndex === 0}
+                className="disabled:opacity-50"
+                onClick={() =>
+                  setQuery({ ...query, pageIndex: page.pageIndex - 1 })
+                }
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                disabled={(page.pageIndex + 1) * page.pageSize >= page.total}
+                className="disabled:opacity-50"
+                onClick={() =>
+                  setQuery({ ...query, pageIndex: page.pageIndex + 1 })
+                }
+              >
+                Siguiente
+              </Button>
+            </nav>
           </div>
-        </div>
+        )}
       </Card>
     </div>
   );
