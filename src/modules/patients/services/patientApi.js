@@ -1,27 +1,32 @@
 import { instance } from '../../shared/api/axiosInstance';
 
-// Este archivo concentra TODOS los pedidos al backend de las pantallas
-// del paciente. Las páginas no hablan con Axios directamente: llaman
-// a estas funciones.
+const PAGE_SIZE = 100;
 
-// Los listados del backend vienen como { pageSize, pageIndex, data, total }.
-// Pedimos hasta 100 (el máximo permitido) y devolvemos solo el arreglo "data".
-const firstPage = { pageSize: 100, pageIndex: 0 };
+async function getAllPages(url, extraParams = {}) {
+  const all = [];
+  let pageIndex = 0;
 
-export async function getSpecialties() {
-  const { data } = await instance.get('/api/specialties', {
-    params: firstPage,
-  });
+  while (true) {
+    const { data } = await instance.get(url, {
+      params: { ...extraParams, pageSize: PAGE_SIZE, pageIndex },
+    });
 
-  return data.data;
+    all.push(...data.data);
+
+    if (data.data.length === 0 || all.length >= data.total) break;
+
+    pageIndex += 1;
+  }
+
+  return all;
 }
 
-export async function getDoctors(specialtyId) {
-  const { data } = await instance.get('/api/doctors', {
-    params: { ...firstPage, specialtyId },
-  });
+export function getSpecialties() {
+  return getAllPages('/api/specialties');
+}
 
-  return data.data;
+export function getDoctors(specialtyId) {
+  return getAllPages('/api/doctors', { specialtyId });
 }
 
 export async function getAvailableSlots(doctorId) {
@@ -57,8 +62,6 @@ export async function getMyAppointments(dni) {
 }
 
 export async function cancelAppointment(appointmentId) {
-  // El backend responde con el texto "ok" (no es JSON),
-  // por eso pedimos la respuesta como texto.
   await instance.delete(`/api/appointments/${appointmentId}`, {
     responseType: 'text',
   });
