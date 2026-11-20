@@ -1,51 +1,122 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Card from '../../shared/components/Card';
 import Button from '../../shared/components/Button';
+import TablePagination from '../../shared/components/TablePagination';
+import SpecialtySelect from '../../specialties/components/SpecialtySelect';
+import DoctorForm from '../components/DoctorForm';
+import { deleteDoctor } from '../services/deleteDoctor';
+import { listDoctors } from '../services/listDoctors';
 
 function DoctorsPage() {
+  const [editor, setEditor] = useState(null);
+  const [notice, setNotice] = useState('');
+  const [removingId, setRemovingId] = useState(null);
+  const [removalError, setRemovalError] = useState('');
+  const actionsDisabled = Boolean(editor) || removingId !== null;
   const [searchTerm, setSearchTerm] = useState('');
+  const [specialtyId, setSpecialtyId] = useState('');
+  const [filterError, setFilterError] = useState('');
+  const [query, setQuery] = useState({
+    name: '',
+    specialtyId: '',
+    pageIndex: 0,
+  });
+  const [result, setResult] = useState(null);
+  const loading = result?.query !== query;
+  const page = loading ? null : result.page;
+  const error = loading ? '' : result.error;
 
-  const doctorsList = [
-    {
-      id: 'MED-4920',
-      name: 'Dr. Alejandro Rivera',
-      specialty: 'Cardiología Clínica',
-      status: 'Active',
-      statusType: 'active',
-      avatar: '👨‍⚕️',
-    },
-    {
-      id: 'MED-2104',
-      name: 'Dra. Elena Martínez',
-      specialty: 'Pediatría Avanzada',
-      status: 'On Leave',
-      statusType: 'danger',
-      avatar: '👩‍⚕️',
-    },
-    {
-      id: 'MED-8831',
-      name: 'Dr. Marcos Torres',
-      specialty: 'Neurocirugía',
-      status: 'Active',
-      statusType: 'active',
-      avatar: '👨‍⚕️',
-    },
-    {
-      id: 'MED-1192',
-      name: 'Dra. Lucía Soria',
-      specialty: 'Ginecología',
-      status: 'Active',
-      statusType: 'active',
-      avatar: '👩‍⚕️',
-    },
-  ];
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const filteredDoctors = doctorsList.filter(
-    (doc) =>
-      doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.specialty.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    async function load() {
+      try {
+        const data = await listDoctors({ ...query, signal: controller.signal });
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const lastPage = Math.max(0, Math.ceil(data.total / data.pageSize) - 1);
+
+        if (query.pageIndex > lastPage) {
+          setQuery({ ...query, pageIndex: lastPage });
+
+          return;
+        }
+
+        setResult({ query, page: data, error: '' });
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          const message = err.response?.data?.message;
+
+          setResult({
+            query,
+            page: null,
+            error:
+              typeof message === 'string' && message
+                ? message
+                : 'No se pudo cargar el listado de médicos.',
+          });
+        }
+      }
+    }
+
+    load();
+
+    return () => controller.abort();
+  }, [query]);
+
+  async function removeDoctor({ id, name, licenseNumber }) {
+    if (
+      actionsDisabled ||
+      !window.confirm(`¿Dar de baja a ${name} (matrícula ${licenseNumber})?`)
+    ) {
+      return;
+    }
+
+    setNotice('');
+    setRemovalError('');
+    setRemovingId(id);
+
+    try {
+      await deleteDoctor(id);
+      setNotice(`Se dio de baja a ${name} (matrícula ${licenseNumber}).`);
+    } catch (err) {
+      const message = err.response?.data?.message;
+
+      setRemovalError(
+        typeof message === 'string' && message
+          ? message
+          : 'No se pudo confirmar la baja. Revisá el listado antes de volver a intentar.'
+      );
+    } finally {
+      setRemovingId(null);
+      setQuery((current) => ({ ...current }));
+    }
+  }
+
+  function search(event) {
+    event.preventDefault();
+
+    const name = searchTerm.trim();
+
+    if (name && (name.length < 3 || name.length > 100)) {
+      setFilterError('Ingresá entre 3 y 100 caracteres para buscar.');
+
+      return;
+    }
+
+    setFilterError('');
+    setQuery({ name, specialtyId, pageIndex: 0 });
+  }
+
+  function clearSearch() {
+    setSearchTerm('');
+    setSpecialtyId('');
+    setFilterError('');
+    setQuery({ name: '', specialtyId: '', pageIndex: 0 });
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,32 +132,6 @@ function DoctorsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Barra de Búsqueda */}
-          <div className="relative min-w-[240px] flex-1 sm:flex-initial">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-med-text-muted">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </span>
-            <input
-              type="text"
-              placeholder="Buscar doctor por nombre..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-med-border rounded-lg text-med-text-main placeholder-med-text-muted focus:outline-none focus:ring-1 focus:ring-med-primary-600"
-            />
-          </div>
-
           <Button
             onClick={() => alert('Abrir modal de disponibilidad horaria')}
             className="flex items-center gap-2 bg-med-primary-900 hover:bg-med-primary-800 text-white"
@@ -108,7 +153,12 @@ function DoctorsPage() {
           </Button>
 
           <Button
-            onClick={() => alert('Abrir modal de nuevo doctor')}
+            disabled={actionsDisabled}
+            onClick={() => {
+              setNotice('');
+              setRemovalError('');
+              setEditor({ doctor: null });
+            }}
             className="flex items-center gap-1.5 bg-med-primary-700 hover:bg-med-primary-800 text-white"
           >
             <span>+</span>
@@ -116,6 +166,96 @@ function DoctorsPage() {
           </Button>
         </div>
       </div>
+
+      {editor && (
+        <DoctorForm
+          doctor={editor.doctor}
+          onCancel={() => setEditor(null)}
+          onSaved={(doctor) => {
+            setEditor(null);
+            setNotice(
+              `${editor.doctor ? 'Se actualizó a' : 'Se registró a'} ${doctor.name} (matrícula ${doctor.licenseNumber}).`
+            );
+            setSearchTerm(doctor.name);
+            setSpecialtyId('');
+            setFilterError('');
+            setQuery({ name: doctor.name, specialtyId: '', pageIndex: 0 });
+          }}
+        />
+      )}
+      {removalError && (
+        <p role="alert" className="text-sm text-red-600">
+          {removalError}
+        </p>
+      )}
+      {removingId && (
+        <p role="status" className="text-sm text-med-text-sub">
+          Procesando la baja…
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="text-sm text-med-primary-900">
+          {notice}
+        </p>
+      )}
+
+      <form
+        role="search"
+        onSubmit={search}
+        className="flex flex-wrap items-end gap-3"
+      >
+        <div>
+          <label
+            htmlFor="doctor-search"
+            className="block text-sm font-semibold"
+          >
+            Nombre del médico
+          </label>
+          <input
+            id="doctor-search"
+            type="search"
+            value={searchTerm}
+            onChange={(event) => {
+              setSearchTerm(event.target.value);
+              setFilterError('');
+            }}
+            aria-invalid={Boolean(filterError)}
+            aria-describedby={filterError ? 'doctor-filter-error' : undefined}
+            className="rounded-lg border border-med-border px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="doctor-specialty"
+            className="block text-sm font-semibold"
+          >
+            Especialidad
+          </label>
+          <SpecialtySelect
+            id="doctor-specialty"
+            value={specialtyId}
+            onChange={(event) => setSpecialtyId(event.target.value)}
+            emptyLabel="Todas las especialidades"
+          />
+        </div>
+        <Button type="submit" variant="secondary">
+          Buscar
+        </Button>
+        {(searchTerm || specialtyId || query.name || query.specialtyId) && (
+          <Button variant="ghost" onClick={clearSearch}>
+            Limpiar
+          </Button>
+        )}
+        {filterError && (
+          <p
+            id="doctor-filter-error"
+            role="alert"
+            className="w-full text-sm text-red-600"
+          >
+            {filterError}
+          </p>
+        )}
+      </form>
 
       {/* Tabla Principal */}
       <Card className="p-0 overflow-hidden border-med-border">
@@ -130,65 +270,48 @@ function DoctorsPage() {
               <tr>
                 <th className="px-6 py-3.5">Nombre del Doctor</th>
                 <th className="px-6 py-3.5">Especialidad</th>
-                <th className="px-6 py-3.5 text-center">
-                  Estado de Disponibilidad
-                </th>
+                <th className="px-6 py-3.5 text-center">Matrícula</th>
                 <th className="px-6 py-3.5 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-med-border-subtle">
-              {filteredDoctors.map((doc) => (
+              {(loading || error || page?.data.length === 0) && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-5 text-med-text-sub">
+                    {loading && <span role="status">Cargando médicos…</span>}
+                    {error && (
+                      <div role="alert" className="flex items-center gap-3">
+                        {error}
+                        <Button
+                          variant="outline"
+                          onClick={() => setQuery({ ...query })}
+                        >
+                          Reintentar
+                        </Button>
+                      </div>
+                    )}
+                    {page?.data.length === 0 && (
+                      <span role="status">
+                        {query.name || query.specialtyId
+                          ? 'Ningún médico coincide con los filtros.'
+                          : 'Todavía no hay médicos registrados.'}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )}
+              {page?.data.map((doc) => (
                 <tr
                   key={doc.id}
                   className="hover:bg-gray-50/70 transition-colors"
                 >
-                  {/* Doctor Info */}
+                  <td className="px-6 py-4 font-semibold text-med-primary-900">
+                    {doc.name}
+                  </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-xl bg-med-primary-100 flex items-center justify-center text-xl">
-                          {doc.avatar}
-                        </div>
-                        <span
-                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                            doc.statusType === 'active'
-                              ? 'bg-emerald-500'
-                              : 'bg-rose-500'
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-med-primary-900 leading-tight">
-                          {doc.name}
-                        </p>
-                        <p className="text-xs text-med-text-muted mt-0.5">
-                          ID: {doc.id}
-                        </p>
-                      </div>
-                    </div>
+                    {doc.specialty?.name || 'Sin especialidad'}
                   </td>
-
-                  {/* Especialidad Badge en Píldora */}
-                  <td className="px-6 py-4">
-                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-med-primary-100 text-med-primary-700">
-                      {doc.specialty}
-                    </span>
-                  </td>
-
-                  {/* Estado de Disponibilidad */}
-                  <td className="px-6 py-4 text-center">
-                    {doc.statusType === 'active' ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-med-active-bg text-med-active-text">
-                        <span className="w-1.5 h-1.5 rounded-full bg-med-active-text" />
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-med-danger-bg text-med-danger-text">
-                        <span className="w-1.5 h-1.5 rounded-full bg-med-danger-text" />
-                        On Leave
-                      </span>
-                    )}
-                  </td>
+                  <td className="px-6 py-4 text-center">{doc.licenseNumber}</td>
 
                   {/* Botones de Acciones (Ojo, Lápiz, Basurero) */}
                   <td className="px-6 py-4 text-right">
@@ -222,7 +345,13 @@ function DoctorsPage() {
                       <button
                         title="Editar profesional"
                         className="p-1.5 rounded-lg hover:bg-med-primary-50 text-med-primary-600 hover:text-med-primary-900 transition"
-                        onClick={() => alert(`Editar profesional ${doc.name}`)}
+                        aria-label={`Editar a ${doc.name}`}
+                        disabled={actionsDisabled}
+                        onClick={() => {
+                          setNotice('');
+                          setRemovalError('');
+                          setEditor({ doctor: doc });
+                        }}
                       >
                         <svg
                           className="w-4 h-4"
@@ -240,11 +369,12 @@ function DoctorsPage() {
                       </button>
 
                       <button
-                        title="Eliminar profesional"
+                        type="button"
+                        title="Dar de baja al médico"
+                        aria-label={`Dar de baja a ${doc.name} (matrícula ${doc.licenseNumber})`}
+                        disabled={actionsDisabled}
                         className="p-1.5 rounded-lg hover:bg-red-50 text-med-danger-text transition"
-                        onClick={() =>
-                          alert(`Eliminar profesional ${doc.name}`)
-                        }
+                        onClick={() => removeDoctor(doc)}
                       >
                         <svg
                           className="w-4 h-4"
@@ -268,18 +398,15 @@ function DoctorsPage() {
           </table>
         </div>
 
-        {/* Paginador normalizado idéntico a Búsqueda y Filtrado de Citas */}
-        <div className="p-4 bg-med-primary-50/50 border-t border-med-border flex items-center justify-between text-xs text-med-text-muted">
-          <span>Mostrando 4 de 124 registros</span>
-          <div className="flex items-center gap-1">
-            <button className="px-2.5 py-1 border border-med-border rounded bg-white text-med-text-sub hover:bg-gray-50">
-              ‹
-            </button>
-            <button className="px-2.5 py-1 border border-med-border rounded bg-white text-med-text-sub hover:bg-gray-50">
-              ›
-            </button>
-          </div>
-        </div>
+        {page && (
+          <TablePagination
+            currentPage={page.pageIndex + 1}
+            totalPages={Math.max(1, Math.ceil(page.total / page.pageSize))}
+            totalItems={page.total}
+            pageSize={page.pageSize}
+            onPageChange={(next) => setQuery({ ...query, pageIndex: next - 1 })}
+          />
+        )}
       </Card>
     </div>
   );
