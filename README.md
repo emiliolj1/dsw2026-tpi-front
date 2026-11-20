@@ -1,24 +1,17 @@
-# Unidad 5
+# Turno Norte
 
-# Configuración
+Frontend para pacientes y administración de la clínica.
 
-Se agrego un archivo .env.development
-En este archivo tienes una variable de entorno llamada VITE_BACKEND_URL, debes cambiar su valor de acuerdo a la URL de tu backend.
+## Arranque local
 
-## Pasos de instalación
+1. Levantá la API en `http://localhost:5278` siguiendo la [guía de integración del backend](https://github.com/emiliolj1/dsw2026-tpi/blob/development/docs/backend/integracion-frontend.md).
+2. Con Node.js 22.12+ o 24 LTS, ejecutá `npm ci` y `npm run dev -- --port 5173 --strictPort`.
+3. Abrí `http://localhost:5173/login` para pacientes o `http://localhost:5173/admin/login` para administración.
 
-### Ejecutar:
+Si la API usa otra dirección, definí `VITE_BACKEND_URL` en `.env.development.local` y reiniciá Vite. Usá `npm run lint` y `npm run build` para verificar los cambios.
 
-`npm install`
+## Integración de módulos
 
-### Ejecutar lint
-
-`npm run lint`
-
-### Iniciar aplicación
-
-`npm run dev`
-
-### Crear archivos para producción
-
-`npm run build`
+- Llamá a la API con `instance` de `src/modules/shared/api/axiosInstance.js`. Adjunta el JWT y elimina la sesión vigente si la API rechaza ese token con HTTP 401.
+- Usá `getApiError(error)` de `src/modules/shared/api/apiError.js` para acceder a `status`, `errorCode`, `message` y `details`.
+- `useAuth()` expone `session`, que contiene `{ token, role }` y agrega `dni` numérico para `PACIENTE`. Sin sesión, devuelve `session: null`.

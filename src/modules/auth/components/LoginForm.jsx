@@ -1,97 +1,188 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useLocation, useNavigate } from 'react-router-dom';
-import Input from '../../shared/components/Input';
+import { Link, Navigate } from 'react-router-dom';
+import { getApiError } from '../../shared/api/apiError';
 import Button from '../../shared/components/Button';
+import Card from '../../shared/components/Card';
+import Input from '../../shared/components/Input';
 import useAuth from '../hook/useAuth';
-import { frontendErrorMessage } from '../helpers/backendError';
 
-function LoginForm({ redirectPath, title }) {
-  const [errorMessage, setErrorMessage] = useState('');
+function LoginForm({ role }) {
+  const { session, signInAdmin, signInPatient, logoutWarningRole } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [apiError, setApiError] = useState(null);
   const {
     register,
     handleSubmit,
-    formState: { errors },
-  } = useForm({ defaultValues: { username: '', password: '' } });
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm();
+  const isAdmin = role === 'ADMINISTRADOR';
+  const home = isAdmin ? '/admin/home' : '/';
 
-  const navigate = useNavigate();
-  const location = useLocation();
+  async function onValid({ email, password, dni }) {
+    setApiError(null);
 
-  const { singin } = useAuth();
-
-  const onValid = async (formData) => {
     try {
-      const { error } = await singin(formData.username, formData.password);
-
-      if (error) {
-        setErrorMessage(error.frontendErrorMessage);
-
-        return;
-      }
-
-      const defaultRedirect = location.pathname.startsWith('/admin')
-        ? '/admin/home'
-        : '/appointments';
-
-      navigate(redirectPath || defaultRedirect);
-    } catch (error) {
-      if (error?.response?.data?.code) {
-        setErrorMessage(frontendErrorMessage[error?.response?.data?.code]);
+      if (isAdmin) {
+        await signInAdmin(email.trim(), password);
       } else {
-        setErrorMessage('Llame a soporte');
+        await signInPatient(email.trim(), Number(dni));
       }
-    }
-  };
+    } catch (error) {
+      const failure = getApiError(error);
+      const fields = ['email', isAdmin ? 'password' : 'dni'];
+      const otherDetails = [];
 
-  const formTitle =
-    title ||
-    (location.pathname.startsWith('/admin')
-      ? 'Acceso Administración'
-      : 'Acceso Pacientes');
+      for (const detail of failure.details) {
+        const field = detail.field?.toLowerCase();
+
+        if (fields.includes(field)) {
+          setError(field, { type: 'server', message: detail.issue });
+        } else if (detail.issue) {
+          otherDetails.push(detail.issue);
+        }
+      }
+
+      setApiError({
+        message:
+          failure.status === 401
+            ? isAdmin
+              ? 'El correo o la contraseña son incorrectos.'
+              : 'Revisá el correo y el DNI que ingresaste.'
+            : failure.message,
+        details: otherDetails,
+      });
+    }
+  }
+
+  if (session?.role === role) {
+    return <Navigate to={home} replace />;
+  }
 
   return (
-    <form
-      className="
-        flex
-        flex-col
-        gap-6
-        bg-white
-        p-8
-        sm:w-md
-        sm:gap-4
-        sm:rounded-lg
-        sm:shadow-lg
-      "
-      onSubmit={handleSubmit(onValid)}
-    >
-      <h2 className="text-xl font-bold text-center text-gray-800">
-        {formTitle}
-      </h2>
-      <Input
-        label="Usuario"
-        {...register('username', {
-          required: 'Usuario es obligatorio',
-        })}
-        error={errors.username?.message}
-      />
-      <Input
-        label="Contraseña"
-        {...register('password', {
-          required: 'Contraseña es obligatorio',
-        })}
-        type="password"
-        error={errors.password?.message}
-      />
+    <main className="min-h-dvh grid place-items-center bg-med-primary-950 px-4 py-8 sm:px-6">
+      <div className="w-full max-w-md">
+        <header className="mb-5 px-1">
+          <p className="font-serif text-4xl leading-tight text-med-primary-50">
+            Turno Norte
+          </p>
+        </header>
+        <Card className="p-6 sm:p-8">
+          <h1 className="text-3xl text-med-primary-900">
+            {isAdmin ? 'Administración' : 'Portal de pacientes'}
+          </h1>
+          <p className="mt-2 mb-6 text-sm text-med-text-sub">
+            {isAdmin
+              ? 'Ingresá para gestionar la agenda de la clínica.'
+              : 'Ingresá con tu correo y DNI para reservar o consultar tus turnos.'}
+          </p>
 
-      <Button type="submit">Iniciar Sesión</Button>
-      <Button
-        variant="secondary"
-        onClick={() => alert('Debe impletar navegacion y pagina de registro')}
-      >
-        Registrar Usuario
-      </Button>
-      {errorMessage && <p className="text-red-500">{errorMessage}</p>}
-    </form>
+          {logoutWarningRole === role && (
+            <p
+              role="status"
+              className="mb-4 rounded-lg bg-med-leave-bg p-3 text-sm text-med-leave-text"
+            >
+              Cerraste la sesión en este navegador. El servidor no confirmó el
+              cierre.
+            </p>
+          )}
+
+          <form
+            onSubmit={handleSubmit(onValid)}
+            className="space-y-4"
+            noValidate
+          >
+            <Input
+              label="Correo electrónico"
+              type="email"
+              autoComplete="username"
+              required
+              error={errors.email?.message}
+              {...register('email', {
+                required: 'Ingresá tu correo electrónico.',
+                validate: (value) =>
+                  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) ||
+                  'Ingresá un correo electrónico válido.',
+              })}
+            />
+
+            {isAdmin ? (
+              <div>
+                <Input
+                  label="Contraseña"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  error={errors.password?.message}
+                  {...register('password', {
+                    required: 'Ingresá tu contraseña.',
+                    minLength: {
+                      value: 8,
+                      message:
+                        'La contraseña debe tener al menos 8 caracteres.',
+                    },
+                  })}
+                />
+                <button
+                  type="button"
+                  className="mt-2 rounded px-1 text-sm font-medium text-med-primary-700 hover:underline"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                </button>
+              </div>
+            ) : (
+              <Input
+                label="DNI"
+                type="text"
+                inputMode="numeric"
+                required
+                error={errors.dni?.message}
+                {...register('dni', {
+                  required: 'Ingresá tu DNI.',
+                  pattern: {
+                    value: /^[1-9][0-9]{6,7}$/,
+                    message: 'Ingresá 7 u 8 dígitos, sin puntos ni espacios.',
+                  },
+                })}
+              />
+            )}
+
+            {apiError && (
+              <div
+                role="alert"
+                className="rounded-lg bg-med-danger-bg p-3 text-sm text-med-danger-text"
+              >
+                <p>{apiError.message}</p>
+                {apiError.details.length > 0 && (
+                  <ul className="mt-1 list-disc pl-4">
+                    {apiError.details.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3"
+            >
+              {isSubmitting ? 'Ingresando…' : 'Ingresar'}
+            </Button>
+          </form>
+        </Card>
+
+        <Link
+          to={isAdmin ? '/login' : '/admin/login'}
+          className="mt-5 inline-block rounded px-1 py-1.5 text-sm font-medium text-med-primary-200 hover:underline"
+        >
+          {isAdmin ? 'Ir al portal de pacientes' : 'Acceso de administración'}
+        </Link>
+      </div>
+    </main>
   );
 }
 

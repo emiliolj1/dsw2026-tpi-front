@@ -1,16 +1,10 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import useAuth from '../../auth/hook/useAuth';
 
 function PatientLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
-  const { singout } = useAuth();
-
-  const handleLogout = () => {
-    singout();
-    navigate('/login');
-  };
+  const { session, signOut, signingOut } = useAuth();
 
   const getNavLinkClass = ({ isActive }) =>
     `px-3.5 py-2 rounded-lg text-sm font-semibold transition ${
@@ -42,8 +36,8 @@ function PatientLayout() {
                   />
                 </svg>
               </div>
-              <span className="text-lg font-bold text-med-primary-900 tracking-tight">
-                Portal Salud
+              <span className="font-serif text-lg font-semibold text-med-primary-900 tracking-tight">
+                Turno Norte
               </span>
             </NavLink>
 
@@ -60,48 +54,30 @@ function PatientLayout() {
 
           {/* Acciones Derecha Desktop / Mobile Avatar */}
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* Iconos sutiles como en el mock */}
-            <button
-              type="button"
-              title="Notificaciones"
-              onClick={() => alert('No tienes notificaciones pendientes')}
-              className="hidden sm:flex p-2 rounded-lg text-med-text-muted hover:text-med-primary-900 hover:bg-gray-50 transition"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-            </button>
-
             {/* Avatar Paciente */}
             <div className="flex items-center gap-2.5 pl-2 sm:border-l sm:border-med-border">
               <div className="w-8 h-8 rounded-full bg-med-primary-100 text-med-primary-900 font-bold text-xs flex items-center justify-center border border-med-primary-200">
-                JD
+                P
               </div>
               <span className="hidden sm:inline-block text-xs font-semibold text-med-text-main">
-                Johnathan Doe
+                DNI {session.dni}
               </span>
             </div>
 
             <button
-              onClick={handleLogout}
+              onClick={signOut}
+              disabled={signingOut}
               className="hidden sm:inline-flex text-xs font-semibold text-med-text-sub hover:text-red-600 px-2.5 py-1.5 rounded-lg border border-med-border hover:bg-red-50/40 transition"
             >
-              Salir
+              {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
             </button>
 
             {/* Botón hamburguesa móvil */}
             <button
               type="button"
+              aria-label="Menú de pacientes"
+              aria-expanded={mobileMenuOpen}
+              aria-controls={mobileMenuOpen ? 'patient-mobile-menu' : undefined}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-1.5 rounded-lg border border-med-border text-med-text-sub hover:bg-gray-50"
             >
@@ -124,7 +100,10 @@ function PatientLayout() {
 
         {/* Desplegable móvil */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-med-border px-4 py-3 bg-white space-y-2">
+          <div
+            id="patient-mobile-menu"
+            className="md:hidden border-t border-med-border px-4 py-3 bg-white space-y-2"
+          >
             <NavLink
               to="/"
               end
@@ -154,13 +133,14 @@ function PatientLayout() {
             </NavLink>
             <div className="pt-2 border-t border-med-border-subtle flex items-center justify-between">
               <span className="text-xs font-medium text-med-text-sub">
-                Paciente: Johnathan Doe
+                DNI {session.dni}
               </span>
               <button
-                onClick={handleLogout}
+                onClick={signOut}
+                disabled={signingOut}
                 className="text-xs font-bold text-red-600"
               >
-                Cerrar sesión
+                {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
               </button>
             </div>
           </div>

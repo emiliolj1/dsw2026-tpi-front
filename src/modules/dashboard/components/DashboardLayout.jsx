@@ -1,16 +1,10 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import useAuth from '../../auth/hook/useAuth';
 
 function DashboardLayout() {
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
-  const navigate = useNavigate();
-  const { singout } = useAuth();
-
-  const handleLogout = () => {
-    singout();
-    navigate('/admin/login');
-  };
+  const { signOut, signingOut } = useAuth();
 
   const navItems = [
     {
@@ -101,18 +95,21 @@ function DashboardLayout() {
     <div className="min-h-screen bg-med-bg flex">
       {/* Sidebar fijo para desktop / retráctil en móvil */}
       <aside
+        id="admin-sidebar"
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-med-border flex flex-col justify-between transition-transform duration-200 sm:translate-x-0 ${
-          openMobileMenu ? 'translate-x-0' : '-translate-x-full'
+          openMobileMenu
+            ? 'visible translate-x-0'
+            : 'invisible -translate-x-full sm:visible'
         }`}
       >
         <div>
           {/* Brand Logo Header */}
           <div className="p-6 border-b border-med-border-subtle">
-            <h2 className="text-base font-bold text-med-primary-900 leading-tight">
-              Admin Portal
+            <h2 className="text-base font-serif font-semibold text-med-primary-900 leading-tight">
+              Turno Norte
             </h2>
             <span className="text-xs font-medium text-med-text-muted">
-              Healthcare Management
+              Administración clínica
             </span>
           </div>
 
@@ -141,7 +138,8 @@ function DashboardLayout() {
         {/* Footer Sidebar (Help, Logout & User profile) */}
         <div className="p-4 border-t border-med-border-subtle space-y-3">
           <button
-            onClick={handleLogout}
+            onClick={signOut}
+            disabled={signingOut}
             className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-med-text-sub hover:text-red-600 hover:bg-red-50 rounded-lg transition"
           >
             <svg
@@ -157,7 +155,7 @@ function DashboardLayout() {
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
               />
             </svg>
-            <span>Cerrar Sesión</span>
+            <span>{signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}</span>
           </button>
 
           {/* User Profile Info */}
@@ -167,10 +165,10 @@ function DashboardLayout() {
             </div>
             <div className="overflow-hidden">
               <p className="text-xs font-semibold text-med-text-main truncate">
-                Admin User
+                Administrador
               </p>
               <p className="text-[11px] text-med-text-muted truncate">
-                Super Administrator
+                Gestión de turnos
               </p>
             </div>
           </div>
@@ -191,13 +189,17 @@ function DashboardLayout() {
         <header className="sm:hidden bg-white border-b border-med-border px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-med-primary-900 text-white flex items-center justify-center font-bold text-xs">
-              MC
+              TN
             </div>
             <span className="font-bold text-sm text-med-primary-900">
-              Medical Center
+              Turno Norte
             </span>
           </div>
           <button
+            type="button"
+            aria-label="Menú de administración"
+            aria-expanded={openMobileMenu}
+            aria-controls="admin-sidebar"
             onClick={() => setOpenMobileMenu(!openMobileMenu)}
             className="p-1.5 rounded-lg border border-med-border text-med-text-sub"
           >
