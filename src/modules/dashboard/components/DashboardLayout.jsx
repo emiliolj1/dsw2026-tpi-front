@@ -46,6 +46,25 @@ function DashboardLayout() {
       ),
     },
     {
+      to: '/admin/availability',
+      label: 'Disponibilidad',
+      icon: (
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.75"
+            d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"
+          />
+        </svg>
+      ),
+    },
+    {
       to: '/admin/specialties',
       label: 'Especialidades',
       icon: (
