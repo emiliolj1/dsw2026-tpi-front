@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Card from '../../shared/components/Card';
 import Button from '../../shared/components/Button';
+import TablePagination from '../../shared/components/TablePagination';
 import SpecialtyForm from '../components/SpecialtyForm';
 import { listSpecialties } from '../services/listSpecialties';
 import { deleteSpecialty } from '../services/deleteSpecialty';
@@ -341,37 +342,16 @@ function SpecialtiesPage() {
         </div>
 
         {page && (
-          <div className="p-4 bg-med-primary-50/50 border-t border-med-border flex items-center justify-between gap-2 text-xs text-med-text-sub">
-            <span aria-live="polite">
-              {page.total <= 1
-                ? page.total === 1
-                  ? '1 registro'
-                  : '0 registros'
-                : `${page.pageIndex * page.pageSize + 1}–${page.pageIndex * page.pageSize + page.data.length} de ${page.total} registros`}
-            </span>
-            <nav aria-label="Páginas de especialidades" className="flex gap-2">
-              <Button
-                variant="outline"
-                disabled={page.pageIndex === 0}
-                className="disabled:opacity-50"
-                onClick={() =>
-                  setQuery({ ...query, pageIndex: page.pageIndex - 1 })
-                }
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                disabled={(page.pageIndex + 1) * page.pageSize >= page.total}
-                className="disabled:opacity-50"
-                onClick={() =>
-                  setQuery({ ...query, pageIndex: page.pageIndex + 1 })
-                }
-              >
-                Siguiente
-              </Button>
-            </nav>
-          </div>
+          <TablePagination
+            label="Páginas de especialidades"
+            currentPage={page.pageIndex + 1}
+            totalPages={Math.max(1, Math.ceil(page.total / page.pageSize))}
+            totalItems={page.total}
+            pageSize={page.pageSize}
+            onPageChange={(nextPage) =>
+              setQuery((current) => ({ ...current, pageIndex: nextPage - 1 }))
+            }
+          />
         )}
       </Card>
     </div>
