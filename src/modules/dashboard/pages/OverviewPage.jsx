@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { instance } from '../../shared/api/axiosInstance';
 import { getApiError } from '../../shared/api/apiError';
 import Card from '../../shared/components/Card';
+import { getPage } from '../services/dashboardApi';
 
 const clinicDateFormatter = new Intl.DateTimeFormat('en', {
   timeZone: 'America/Argentina/Buenos_Aires',
@@ -45,10 +45,7 @@ function OverviewPage() {
 
     async function load(key, path, params) {
       try {
-        const { data } = await instance.get(path, {
-          params,
-          signal: controller.signal,
-        });
+        const data = await getPage(path, params, controller.signal);
 
         if (!controller.signal.aborted) {
           setResults((current) => ({ ...current, [key]: { page: data } }));

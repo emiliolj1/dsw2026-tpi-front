@@ -1,44 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../shared/components/Card';
 import Button from '../../shared/components/Button';
 import useAuth from '../../auth/hook/useAuth';
 import { getApiError } from '../../shared/api/apiError';
-import { cancelAppointment, getMyAppointments } from '../services/patientApi';
+import { cancelAppointment } from '../services/patientApi';
+import useMyAppointments from '../hooks/useMyAppointments';
 import { formatLongDate, formatTime } from '../helpers/dateFormat';
 
 function AppointmentsPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
 
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { appointments, setAppointments, loading, error, setError } =
+    useMyAppointments(session.dni);
   const [notice, setNotice] = useState('');
 
   // Turno que el paciente quiere cancelar (null = ningún cuadro de confirmación abierto).
   const [appointmentToCancel, setAppointmentToCancel] = useState(null);
   const [cancelling, setCancelling] = useState(false);
-
-  // Al abrir la pantalla: traer los turnos del paciente (usa su DNI de la sesión).
-  useEffect(() => {
-    let ignore = false;
-
-    getMyAppointments(session.dni)
-      .then((list) => {
-        if (!ignore) setAppointments(list);
-      })
-      .catch((e) => {
-        if (!ignore) setError(getApiError(e).message);
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [session.dni]);
 
   async function handleConfirmCancel() {
     setCancelling(true);
