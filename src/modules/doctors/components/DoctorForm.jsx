@@ -1,52 +1,37 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import Button from '../../shared/components/Button';
 import Card from '../../shared/components/Card';
 import SpecialtySelect from '../../specialties/components/SpecialtySelect';
 import { createDoctor } from '../services/createDoctor';
 import { updateDoctor } from '../services/updateDoctor';
 
+function normalizeText(value) {
+  return value.trim();
+}
+
 function DoctorForm({ doctor, onSaved, onCancel }) {
-  const [specialtyId, setSpecialtyId] = useState(doctor?.specialty?.id ?? '');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
   const pending = useRef(false);
+  const {
+    register,
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues: {
+      name: doctor?.name ?? '',
+      licenseNumber: doctor?.licenseNumber ?? '',
+      specialtyId: doctor?.specialty?.id ?? '',
+    },
+  });
 
-  async function save(event) {
-    event.preventDefault();
-
+  async function save(values) {
     if (pending.current) return;
 
-    const form = event.currentTarget;
-    const name = form.elements.name.value.trim();
-    const licenseNumber = form.elements.licenseNumber.value.trim();
-
-    if (name.length < 3 || name.length > 100) {
-      setError('Ingresá un nombre de entre 3 y 100 caracteres.');
-      form.elements.name.focus();
-
-      return;
-    }
-
-    if (!licenseNumber) {
-      setError('Ingresá la matrícula.');
-      form.elements.licenseNumber.focus();
-
-      return;
-    }
-
-    if (!specialtyId) {
-      setError(
-        'Seleccioná una especialidad activa. Si el catálogo está vacío, creá una en Especialidades.'
-      );
-
-      return;
-    }
-
     pending.current = true;
-    setSaving(true);
-    setError('');
+
     try {
-      const values = { name, licenseNumber, specialtyId };
       const saved = doctor
         ? await updateDoctor(doctor.id, values)
         : await createDoctor(values);
@@ -55,14 +40,14 @@ function DoctorForm({ doctor, onSaved, onCancel }) {
     } catch (err) {
       const message = err.response?.data?.message;
 
-      setError(
-        typeof message === 'string' && message
-          ? message
-          : 'No se pudo confirmar la operación. Revisá el listado antes de volver a intentar.'
-      );
+      setError('root.server', {
+        message:
+          typeof message === 'string' && message
+            ? message
+            : 'No se pudo confirmar la operación. Revisá el listado antes de volver a intentar.',
+      });
     } finally {
       pending.current = false;
-      setSaving(false);
     }
   }
 
@@ -74,8 +59,12 @@ function DoctorForm({ doctor, onSaved, onCancel }) {
       >
         {doctor ? 'Editar médico' : 'Nuevo médico'}
       </h2>
-      <form onSubmit={save} noValidate aria-labelledby="doctor-form-title">
-        <fieldset disabled={saving} className="space-y-4">
+      <form
+        onSubmit={handleSubmit(save)}
+        noValidate
+        aria-labelledby="doctor-form-title"
+      >
+        <fieldset disabled={isSubmitting} className="space-y-4">
           <div>
             <label
               htmlFor="doctor-name"
@@ -85,12 +74,32 @@ function DoctorForm({ doctor, onSaved, onCancel }) {
             </label>
             <input
               id="doctor-name"
-              name="name"
-              defaultValue={doctor?.name ?? ''}
               autoFocus
-              required
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? 'doctor-name-error' : undefined}
               className="mt-1 w-full rounded-lg border border-med-border px-3 py-2"
+              {...register('name', {
+                setValueAs: normalizeText,
+                required: 'Ingresá un nombre de entre 3 y 100 caracteres.',
+                minLength: {
+                  value: 3,
+                  message: 'Ingresá un nombre de entre 3 y 100 caracteres.',
+                },
+                maxLength: {
+                  value: 100,
+                  message: 'Ingresá un nombre de entre 3 y 100 caracteres.',
+                },
+              })}
             />
+            {errors.name && (
+              <p
+                id="doctor-name-error"
+                role="alert"
+                className="mt-1 text-sm text-red-600"
+              >
+                {errors.name.message}
+              </p>
+            )}
           </div>
           <div>
             <label
@@ -101,11 +110,25 @@ function DoctorForm({ doctor, onSaved, onCancel }) {
             </label>
             <input
               id="doctor-license"
-              name="licenseNumber"
-              defaultValue={doctor?.licenseNumber ?? ''}
-              required
+              aria-invalid={Boolean(errors.licenseNumber)}
+              aria-describedby={
+                errors.licenseNumber ? 'doctor-license-error' : undefined
+              }
               className="mt-1 w-full rounded-lg border border-med-border px-3 py-2"
+              {...register('licenseNumber', {
+                setValueAs: normalizeText,
+                required: 'Ingresá la matrícula.',
+              })}
             />
+            {errors.licenseNumber && (
+              <p
+                id="doctor-license-error"
+                role="alert"
+                className="mt-1 text-sm text-red-600"
+              >
+                {errors.licenseNumber.message}
+              </p>
+            )}
           </div>
           <div>
             <label
@@ -114,21 +137,36 @@ function DoctorForm({ doctor, onSaved, onCancel }) {
             >
               Especialidad del médico
             </label>
-            <SpecialtySelect
-              id="new-doctor-specialty"
-              value={specialtyId}
-              onChange={(event) => setSpecialtyId(event.target.value)}
-              emptyLabel="Seleccioná una especialidad"
+            <Controller
+              name="specialtyId"
+              control={control}
+              rules={{
+                required:
+                  'Seleccioná una especialidad activa. Si el catálogo está vacío, creá una en Especialidades.',
+              }}
+              render={({ field }) => (
+                <SpecialtySelect
+                  id="new-doctor-specialty"
+                  value={field.value}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  emptyLabel="Seleccioná una especialidad"
+                />
+              )}
             />
+            {errors.specialtyId && (
+              <p role="alert" className="mt-1 text-sm text-red-600">
+                {errors.specialtyId.message}
+              </p>
+            )}
           </div>
-          {error && (
+          {errors.root?.server && (
             <p role="alert" className="text-sm text-red-600">
-              {error}
+              {errors.root.server.message}
             </p>
           )}
           <div className="flex gap-2">
             <Button type="submit">
-              {saving
+              {isSubmitting
                 ? 'Guardando…'
                 : doctor
                   ? 'Guardar cambios'
