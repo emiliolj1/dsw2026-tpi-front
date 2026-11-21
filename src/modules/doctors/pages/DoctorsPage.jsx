@@ -1,75 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../shared/components/Card';
 import Button from '../../shared/components/Button';
 import TablePagination from '../../shared/components/TablePagination';
 import SpecialtySelect from '../../specialties/components/SpecialtySelect';
 import DoctorForm from '../components/DoctorForm';
-import { deleteDoctor } from '../services/deleteDoctor';
-import { listDoctors } from '../services/listDoctors';
+import { useDoctors } from '../hooks/useDoctors';
 
 function DoctorsPage() {
   const navigate = useNavigate();
   const [editor, setEditor] = useState(null);
   const [notice, setNotice] = useState('');
-  const [removingId, setRemovingId] = useState(null);
-  const [removalError, setRemovalError] = useState('');
+  const {
+    draft,
+    hasAppliedFilters,
+    filterError,
+    loading,
+    page,
+    error,
+    removingId,
+    removalError,
+    changeName,
+    changeSpecialty,
+    search,
+    clearSearch,
+    showDoctor,
+    changePage,
+    reload,
+    removeDoctor,
+    clearRemovalError,
+  } = useDoctors();
   const actionsDisabled = Boolean(editor) || removingId !== null;
-  const [searchTerm, setSearchTerm] = useState('');
-  const [specialtyId, setSpecialtyId] = useState('');
-  const [filterError, setFilterError] = useState('');
-  const [query, setQuery] = useState({
-    name: '',
-    specialtyId: '',
-    pageIndex: 0,
-  });
-  const [result, setResult] = useState(null);
-  const loading = result?.query !== query;
-  const page = loading ? null : result.page;
-  const error = loading ? '' : result.error;
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function load() {
-      try {
-        const data = await listDoctors({ ...query, signal: controller.signal });
-
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        const lastPage = Math.max(0, Math.ceil(data.total / data.pageSize) - 1);
-
-        if (query.pageIndex > lastPage) {
-          setQuery({ ...query, pageIndex: lastPage });
-
-          return;
-        }
-
-        setResult({ query, page: data, error: '' });
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          const message = err.response?.data?.message;
-
-          setResult({
-            query,
-            page: null,
-            error:
-              typeof message === 'string' && message
-                ? message
-                : 'No se pudo cargar el listado de médicos.',
-          });
-        }
-      }
-    }
-
-    load();
-
-    return () => controller.abort();
-  }, [query]);
-
-  async function removeDoctor({ id, name, licenseNumber }) {
+  async function confirmRemoval({ id, name, licenseNumber }) {
     if (
       actionsDisabled ||
       !window.confirm(`¿Dar de baja a ${name} (matrícula ${licenseNumber})?`)
@@ -78,46 +41,10 @@ function DoctorsPage() {
     }
 
     setNotice('');
-    setRemovalError('');
-    setRemovingId(id);
 
-    try {
-      await deleteDoctor(id);
+    if (await removeDoctor(id)) {
       setNotice(`Se dio de baja a ${name} (matrícula ${licenseNumber}).`);
-    } catch (err) {
-      const message = err.response?.data?.message;
-
-      setRemovalError(
-        typeof message === 'string' && message
-          ? message
-          : 'No se pudo confirmar la baja. Revisá el listado antes de volver a intentar.'
-      );
-    } finally {
-      setRemovingId(null);
-      setQuery((current) => ({ ...current }));
     }
-  }
-
-  function search(event) {
-    event.preventDefault();
-
-    const name = searchTerm.trim();
-
-    if (name && (name.length < 3 || name.length > 100)) {
-      setFilterError('Ingresá entre 3 y 100 caracteres para buscar.');
-
-      return;
-    }
-
-    setFilterError('');
-    setQuery({ name, specialtyId, pageIndex: 0 });
-  }
-
-  function clearSearch() {
-    setSearchTerm('');
-    setSpecialtyId('');
-    setFilterError('');
-    setQuery({ name: '', specialtyId: '', pageIndex: 0 });
   }
 
   return (
@@ -158,7 +85,7 @@ function DoctorsPage() {
             disabled={actionsDisabled}
             onClick={() => {
               setNotice('');
-              setRemovalError('');
+              clearRemovalError();
               setEditor({ doctor: null });
             }}
             className="flex items-center gap-1.5 bg-med-primary-700 hover:bg-med-primary-800 text-white"
@@ -178,10 +105,7 @@ function DoctorsPage() {
             setNotice(
               `${editor.doctor ? 'Se actualizó a' : 'Se registró a'} ${doctor.name} (matrícula ${doctor.licenseNumber}).`
             );
-            setSearchTerm(doctor.name);
-            setSpecialtyId('');
-            setFilterError('');
-            setQuery({ name: doctor.name, specialtyId: '', pageIndex: 0 });
+            showDoctor(doctor.name);
           }}
         />
       )}
@@ -203,7 +127,10 @@ function DoctorsPage() {
 
       <form
         role="search"
-        onSubmit={search}
+        onSubmit={(event) => {
+          event.preventDefault();
+          search();
+        }}
         className="flex flex-wrap items-end gap-3"
       >
         <div>
@@ -216,11 +143,8 @@ function DoctorsPage() {
           <input
             id="doctor-search"
             type="search"
-            value={searchTerm}
-            onChange={(event) => {
-              setSearchTerm(event.target.value);
-              setFilterError('');
-            }}
+            value={draft.name}
+            onChange={(event) => changeName(event.target.value)}
             aria-invalid={Boolean(filterError)}
             aria-describedby={filterError ? 'doctor-filter-error' : undefined}
             className="rounded-lg border border-med-border px-3 py-2 text-sm"
@@ -235,15 +159,15 @@ function DoctorsPage() {
           </label>
           <SpecialtySelect
             id="doctor-specialty"
-            value={specialtyId}
-            onChange={(event) => setSpecialtyId(event.target.value)}
+            value={draft.specialtyId}
+            onChange={(event) => changeSpecialty(event.target.value)}
             emptyLabel="Todas las especialidades"
           />
         </div>
         <Button type="submit" variant="secondary">
           Buscar
         </Button>
-        {(searchTerm || specialtyId || query.name || query.specialtyId) && (
+        {(draft.name || draft.specialtyId || hasAppliedFilters) && (
           <Button variant="ghost" onClick={clearSearch}>
             Limpiar
           </Button>
@@ -284,17 +208,14 @@ function DoctorsPage() {
                     {error && (
                       <div role="alert" className="flex items-center gap-3">
                         {error}
-                        <Button
-                          variant="outline"
-                          onClick={() => setQuery({ ...query })}
-                        >
+                        <Button variant="outline" onClick={reload}>
                           Reintentar
                         </Button>
                       </div>
                     )}
                     {page?.data.length === 0 && (
                       <span role="status">
-                        {query.name || query.specialtyId
+                        {hasAppliedFilters
                           ? 'Ningún médico coincide con los filtros.'
                           : 'Todavía no hay médicos registrados.'}
                       </span>
@@ -351,7 +272,7 @@ function DoctorsPage() {
                         disabled={actionsDisabled}
                         onClick={() => {
                           setNotice('');
-                          setRemovalError('');
+                          clearRemovalError();
                           setEditor({ doctor: doc });
                         }}
                       >
@@ -376,7 +297,7 @@ function DoctorsPage() {
                         aria-label={`Dar de baja a ${doc.name} (matrícula ${doc.licenseNumber})`}
                         disabled={actionsDisabled}
                         className="p-1.5 rounded-lg hover:bg-red-50 text-med-danger-text transition"
-                        onClick={() => removeDoctor(doc)}
+                        onClick={() => confirmRemoval(doc)}
                       >
                         <svg
                           className="w-4 h-4"
@@ -402,11 +323,12 @@ function DoctorsPage() {
 
         {page && (
           <TablePagination
+            label="Páginas de médicos"
             currentPage={page.pageIndex + 1}
             totalPages={Math.max(1, Math.ceil(page.total / page.pageSize))}
             totalItems={page.total}
             pageSize={page.pageSize}
-            onPageChange={(next) => setQuery({ ...query, pageIndex: next - 1 })}
+            onPageChange={changePage}
           />
         )}
       </Card>
